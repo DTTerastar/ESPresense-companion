@@ -73,14 +73,7 @@ export interface Config {
 	map: MapConfig;
 }
 
-export type NodeSetting = {
-	id: string | null;
-	name: string | null;
-	absorption: number | null;
-	rx_adj_rssi: number | null;
-	tx_ref_rssi: number | null;
-	max_distance: number | null;
-};
+export type DeviceDetail = Array<{ key: string; value: string }>;
 
 export type DeviceSetting = {
 	originalId: string;
@@ -160,7 +153,9 @@ export interface CalibrationResponse {
 	matrix: CalibrationMatrix;
 }
 
-export type NodeSettings = {
+export type NodeSetting = {
+	id: string | null;
+	name: string | null;
 	updating: {
 		autoUpdate: boolean;
 		preRelease: boolean;
@@ -184,7 +179,7 @@ export type NodeSettings = {
 	calibration: {
 		rssiAt1m: number | null;
 		rssiAdjustment: number | null;
-		absorptionFactor: number | null;
+		absorption: number | null;
 		iBeaconRssiAt1m: number | null;
 	};
 };
