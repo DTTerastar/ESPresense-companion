@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+﻿﻿﻿﻿using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -20,6 +20,7 @@ public class StateController : ControllerBase
     private readonly NodeSettingsStore _nsd;
     private readonly MappingService _ms;
     private readonly GlobalEventDispatcher _eventDispatcher;
+    private GlobalUpdating _globalUpdating = new();
 
     public StateController(ILogger<StateController> logger, State state, ConfigLoader config, NodeSettingsStore nsd, NodeTelemetryStore nts, MappingService ms, GlobalEventDispatcher eventDispatcher)
     {
@@ -133,6 +134,27 @@ public class StateController : ControllerBase
             _eventDispatcher.CalibrationChanged -= OnCalibrationChanged;
             _eventDispatcher.NodeStateChanged -= OnNodeStateChanged;
             _eventDispatcher.DeviceStateChanged -= OnDeviceChanged;
+        }
+    }
+
+    [HttpGet("api/state/global/updating")]
+    public GlobalUpdating GetGlobalUpdating()
+    {
+        return _globalUpdating;
+    }
+
+    [HttpPut("api/state/global/updating")]
+    public IActionResult UpdateGlobalUpdating([FromBody] GlobalUpdating settings)
+    {
+        try
+        {
+            _globalUpdating = settings;
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating global settings");
+            return StatusCode(500, new { error = "An error occurred while updating global settings" });
         }
     }
 
