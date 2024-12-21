@@ -1,148 +1,107 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
-    import { devices } from '$lib/stores';
-    import * as THREE from 'three';
-    import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-    import type { Group } from 'three';
+    import { T, useFrame } from '@threlte/core';
+    import { HTML } from '@threlte/extras';
+    import { devices, config } from '$lib/stores';
     import type { Device } from '$lib/types';
-
-    export let groupPivot: Group;
+    import * as THREE from 'three';
 
     // Position adjustments
     const X_POS_ADJ = 1.5;
     const Y_POS_ADJ = 5;
+    const FLOOR_HEIGHT = 3;
+    const DEVICE_HEIGHT = 0.5;
 
     // Animation settings
     const PULSE_SPEED = 2;  // Oscillations per second
     const PULSE_MIN = 0.8;
     const PULSE_MAX = 1.2;
 
-    const geoSphere = new THREE.SphereGeometry(0.2, 32, 16);
     const trackerMaterials = [
-        new THREE.MeshStandardMaterial({
+        {
             emissive: 0xff0000,
             emissiveIntensity: 2,
             transparent: true,
             opacity: 0.8
-        }),
-        new THREE.MeshStandardMaterial({
+        },
+        {
             emissive: 0xffbb00,
             emissiveIntensity: 2,
             transparent: true,
             opacity: 0.8
-        }),
-        new THREE.MeshStandardMaterial({
+        },
+        {
             emissive: 0xffee00,
             emissiveIntensity: 2,
             transparent: true,
             opacity: 0.8
-        }),
+        }
     ];
 
-    let deviceGroup: THREE.Group | null = null;
-    let trackingSpheres: THREE.Mesh[] = [];
-    let trackerLabels: { [key: string]: HTMLDivElement } = {};
-    let startTime = performance.now();
+    let scale = 1;
+    let startTime = Date.now();
 
-    $: if ($devices && groupPivot) {
-        updateDevices($devices);
+    $: floors = $config?.floors || [];
+    $: floorMap = new Map(floors.map((f, i) => [f.id, i]));
+
+    function getDeviceFloorIndex(device: Device): number {
+        if (!device.floor?.id) return 0;
+        return floorMap.get(device.floor.id) || 0;
     }
 
-    function cleanupDeviceGroup() {
-        if (!deviceGroup) return;
-
-        deviceGroup.traverse(child => {
-            if ((child as any).geometry) {
-                (child as any).geometry.dispose();
-            }
-            if ((child as any).material) {
-                (child as any).material.dispose();
-            }
-            // Clean up CSS2D labels
-            if (child instanceof CSS2DObject) {
-                const element = child.element;
-                if (element && element.parentNode) {
-                    element.parentNode.removeChild(element);
-                }
-            }
-        });
-
-        groupPivot.remove(deviceGroup);
-        deviceGroup = null;
-        trackingSpheres = [];
-        trackerLabels = {};
-    }
-
-    function updateDevices(devices: Device[]) {
-        cleanupDeviceGroup();
-
-        const newDeviceGroup = new THREE.Group();
-        newDeviceGroup.name = 'DeviceGroup';
-
-        devices.forEach(device => {
-            if (!device.location) return;
-
-            const trackName = device.id;
-            const confidence = device.confidence || 0;
-            const fixes = device.fixes || 0;
-            const position = device.location;
-
-            if (confidence <= 1) return;
-
-            const material = trackerMaterials[trackingSpheres.length % trackerMaterials.length];
-            const newSphere = new THREE.Mesh(geoSphere, material);
-            newSphere.name = trackName;
-            newSphere.position.set(position.x - X_POS_ADJ, position.y - Y_POS_ADJ, position.z);
-
-            trackingSpheres.push(newSphere);
-            newDeviceGroup.add(newSphere);
-
-            const labelDivEle = document.createElement('div');
-            labelDivEle.style.color = '#ffffff';
-            labelDivEle.style.fontFamily = 'Arial';
-            labelDivEle.style.fontSize = '0.8rem';
-            labelDivEle.style.marginTop = '-1em';
-
-            const labelDivLine1 = document.createElement('div');
-            const displayName = device.name || device.id;
-            labelDivLine1.textContent = displayName.length > 15 ? (displayName.substring(0, 14) + '...') : displayName;
-
-            const labelDivLine2 = document.createElement('div');
-            labelDivLine2.textContent = `${confidence}% (${fixes} fixes)`;
-
-            labelDivEle.append(labelDivLine1, labelDivLine2);
-            trackerLabels[trackName] = labelDivLine2;
-
-            const labelElement = new CSS2DObject(labelDivEle);
-            labelElement.name = trackName + '#label';
-            labelElement.position.set(position.x - X_POS_ADJ, position.y - Y_POS_ADJ, position.z);
-
-            newDeviceGroup.add(labelElement);
-        });
-
-        deviceGroup = newDeviceGroup;
-        groupPivot.add(deviceGroup);
-    }
-
-    // Update pulse scale based on time
-    function updatePulse() {
-        const elapsed = (performance.now() - startTime) / 1000;
+    useFrame(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
         const phase = (elapsed * PULSE_SPEED * Math.PI) % (Math.PI * 2);
-        const scale = PULSE_MIN + (Math.sin(phase) + 1) * (PULSE_MAX - PULSE_MIN) / 2;
-
-        trackingSpheres.forEach((sphere) => {
-            sphere.scale.set(scale, scale, scale);
-        });
-    }
-
-    // Export update function for parent to call during animation
-    export function update() {
-        if (deviceGroup) {
-            updatePulse();
-        }
-    }
-
-    onDestroy(() => {
-        cleanupDeviceGroup();
+        scale = PULSE_MIN + (Math.sin(phase) + 1) * (PULSE_MAX - PULSE_MIN) / 2;
     });
 </script>
+
+<T.Group name="DeviceGroup">
+    {#each $devices as device, i}
+        {#if device.location && device.confidence > 1}
+            {@const floorIndex = getDeviceFloorIndex(device)}
+            <T.Group
+                position={[
+                    device.location.x - X_POS_ADJ,
+                    device.location.y - Y_POS_ADJ,
+                    floorIndex * FLOOR_HEIGHT + DEVICE_HEIGHT
+                ]}
+                scale={[scale, scale, scale]}
+            >
+                <!-- Device sphere -->
+                <T.Mesh name={device.id}>
+                    <T.SphereGeometry args={[0.2, 32, 16]} />
+                    <T.MeshStandardMaterial {...trackerMaterials[i % trackerMaterials.length]} />
+                </T.Mesh>
+
+                <!-- Connection line to floor -->
+                <T.Mesh position.z={-DEVICE_HEIGHT / 2}>
+                    <T.CylinderGeometry args={[0.02, 0.02, DEVICE_HEIGHT, 8]} />
+                    <T.MeshBasicMaterial
+                        color={trackerMaterials[i % trackerMaterials.length].emissive}
+                        transparent={true}
+                        opacity={0.3}
+                    />
+                </T.Mesh>
+
+                <!-- Device label -->
+                <HTML
+                    center
+                    occlude
+                    position.y={0.4}
+                    style="color: #ffffff;
+                           font-family: Arial;
+                           font-size: 0.8rem;
+                           font-weight: bold;
+                           text-shadow: 0 0 4px rgba(0,0,0,0.5);"
+                >
+                    <div>
+                        {device.name?.length > 15 ? device.name.substring(0, 14) + '...' : device.name || device.id}
+                    </div>
+                    <div>
+                        {device.confidence}% ({device.fixes} fixes)
+                    </div>
+                </HTML>
+            </T.Group>
+        {/if}
+    {/each}
+</T.Group>

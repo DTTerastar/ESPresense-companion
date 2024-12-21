@@ -1,120 +1,85 @@
 <script lang="ts">
-    import { onDestroy } from 'svelte';
-    import { nodes } from '$lib/stores';
-    import * as THREE from 'three';
-    import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-    import type { Group } from 'three';
+    import { T } from '@threlte/core';
+    import { HTML } from '@threlte/extras';
+    import { nodes, config } from '$lib/stores';
     import type { Node } from '$lib/types';
 
-    export let groupPivot: Group;
     export let enabled = true;
 
-    // Position adjustments
     const X_POS_ADJ = 1.5;
     const Y_POS_ADJ = 5;
+    const FLOOR_HEIGHT = 3;
+    const NODE_SIZE = 0.15;
 
     const nodeMaterials = {
-        online: new THREE.MeshPhongMaterial({
+        online: {
             color: 0x000000,
             emissive: 0x5555ff,
             emissiveIntensity: 2,
             shininess: 100,
             toneMapped: false
-        }),
-        offline: new THREE.MeshPhongMaterial({
+        },
+        offline: {
             color: 0x000000,
             emissive: 0xff2222,
             emissiveIntensity: 2,
             shininess: 100,
             toneMapped: false
-        }),
+        }
     };
 
-    let nodeGroup: THREE.Group | null = null;
+    $: floors = $config?.floors || [];
+    $: floorMap = new Map(floors.map((f, i) => [f.id, i]));
 
-    $: if ($nodes && groupPivot && enabled) {
-        updateNodes($nodes);
+    function getNodeFloorIndex(node: Node): number {
+        if (!node.floors?.length) return 0;
+        return floorMap.get(node.floors[0]) || 0;
     }
-
-    $: if (!enabled) {
-        cleanupNodeGroup();
-    }
-
-    function cleanupNodeGroup() {
-        if (!nodeGroup) return;
-
-        nodeGroup.traverse(child => {
-            if ((child as any).geometry) {
-                (child as any).geometry.dispose();
-            }
-            if ((child as any).material) {
-                (child as any).material.dispose();
-            }
-            // Clean up CSS2D labels
-            if (child instanceof CSS2DObject) {
-                const element = child.element;
-                if (element && element.parentNode) {
-                    element.parentNode.removeChild(element);
-                }
-            }
-        });
-
-        groupPivot.remove(nodeGroup);
-        nodeGroup = null;
-    }
-
-    function updateNodes(nodes: Node[]) {
-        cleanupNodeGroup();
-
-        const newNodeGroup = new THREE.Group();
-        newNodeGroup.name = 'NodeGroup';
-
-        nodes.forEach((node) => {
-            if (!node.location) {
-                console.warn('Node missing location:', node);
-                return;
-            }
-
-            // Create mesh with emissive material for glow
-            const mesh = new THREE.Mesh(
-                new THREE.SphereGeometry(0.08, 32, 16),
-                nodeMaterials[node.online ? 'online' : 'offline']
-            );
-
-            mesh.position.set(
-                node.location.x - X_POS_ADJ,
-                node.location.y - Y_POS_ADJ,
-                node.location.z
-            );
-            mesh.name = "node#" + node.id;
-
-            // Add mesh and label to group
-            newNodeGroup.add(mesh);
-            newNodeGroup.add(createLabelForNode(node));
-        });
-
-        nodeGroup = newNodeGroup;
-        groupPivot.add(nodeGroup);
-    }
-
-    function createLabelForNode(node: Node) {
-        const labelDivEle = document.createElement('div');
-        labelDivEle.style.color = node.online ? '#5555ff' : '#dc2d2d';
-        labelDivEle.style.fontFamily = 'Arial';
-        labelDivEle.style.fontSize = '0.8rem';
-        labelDivEle.style.marginTop = '-1em';
-
-        const labelDivLine1 = document.createElement('div');
-        labelDivLine1.textContent = node.name;
-        labelDivEle.append(labelDivLine1);
-
-        const labelElement = new CSS2DObject(labelDivEle);
-        labelElement.name = "nodeLabel";
-
-        return labelElement;
-    }
-
-    onDestroy(() => {
-        cleanupNodeGroup();
-    });
 </script>
+
+{#if enabled}
+    <T.Group name="NodeGroup">
+        {#each $nodes as node}
+            {#if node.location}
+                {@const floorIndex = getNodeFloorIndex(node)}
+                <T.Group
+                    position={[
+                        node.location.x - X_POS_ADJ,
+                        node.location.y - Y_POS_ADJ,
+                        floorIndex * FLOOR_HEIGHT + 0.2
+                    ]}
+                >
+                    <!-- Node sphere -->
+                    <T.Mesh name={'node#' + node.id}>
+                        <T.SphereGeometry args={[NODE_SIZE, 32, 16]} />
+                        <T.MeshPhongMaterial {...nodeMaterials[node.online ? 'online' : 'offline']} />
+                    </T.Mesh>
+
+                    <!-- Connection lines to show node height -->
+                    <T.Mesh>
+                        <T.CylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+                        <T.MeshBasicMaterial
+                            color={node.online ? 0x5555ff : 0xff2222}
+                            transparent={true}
+                            opacity={0.5}
+                        />
+                    </T.Mesh>
+
+                    <!-- Node label -->
+                    <HTML
+                        center
+                        occlude
+                        position.y={0.4}
+                        style="color: {node.online ? '#5555ff' : '#dc2d2d'};
+                               font-family: Arial;
+                               font-size: 0.8rem;
+                               font-weight: bold;
+                               text-shadow: 0 0 4px rgba(0,0,0,0.5);"
+                    >
+                        <div>{node.name}</div>
+                    </HTML>
+                </T.Group>
+            {/if}
+        {/each}
+    </T.Group>
+{/if}

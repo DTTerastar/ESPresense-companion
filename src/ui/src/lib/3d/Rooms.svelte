@@ -1,88 +1,61 @@
 <script lang="ts">
+    import { T } from '@threlte/core';
+    import { HTML } from '@threlte/extras';
     import { config } from '$lib/stores';
-    import * as THREE from 'three';
-    import type { Group } from 'three';
+    import type { Room, Floor } from '$lib/types';
 
-    export let groupPivot: Group;
+    $: floors = $config?.floors || [];
 
-    // Position adjustments
-    const X_POS_ADJ = 1.5;
-    const Y_POS_ADJ = 5;
+    function getRoomCenter(points: [number, number][]): [number, number] {
+        if (!points || points.length === 0) return [0, 0];
 
-    const materials = {
-        green1: new THREE.LineBasicMaterial({
-            color: 0x03a062,
-            transparent: true,
-            opacity: 0.6
-        }),
-    };
-
-    const floorMaterial = new THREE.MeshBasicMaterial({
-        color: 0x03a062,
-        side: THREE.DoubleSide,
-        opacity: 0.1,
-        transparent: true
-    });
-
-    let roomGroup: THREE.Group | null = null;
-
-    function cleanupRooms() {
-        if (roomGroup) {
-            roomGroup.traverse(child => {
-                if ((child as any).geometry) {
-                    (child as any).geometry.dispose();
-                }
-                if ((child as any).material) {
-                    (child as any).material.dispose();
-                }
-            });
-            groupPivot.remove(roomGroup);
-            roomGroup = null;
-        }
+        const sum = points.reduce((acc, point) => [acc[0] + point[0], acc[1] + point[1]], [0, 0]);
+        return [sum[0] / points.length, sum[1] / points.length];
     }
 
-    $: if ($config?.floors && groupPivot) {
-        cleanupRooms();
-        const newRoomGroup = new THREE.Group();
-        newRoomGroup.name = 'RoomGroup';
+    function getRoomSize(points: [number, number][]): [number, number] {
+        if (!points || points.length === 0) return [1, 1];
 
-        $config.floors.forEach(floor => {
-            const floor_base = floor.bounds[0][2];
-            const floor_ceiling = floor.bounds[1][2];
-
-            floor.rooms?.forEach((room: any) => {
-            const points3d: THREE.Vector3[] = [];
-            const pointsFloor: THREE.Vector2[] = [];
-
-            room.points.forEach((points: number[]) => {
-                points3d.push(new THREE.Vector3(points[0], points[1], floor_base));
-                points3d.push(new THREE.Vector3(points[0], points[1], floor_ceiling));
-                points3d.push(new THREE.Vector3(points[0], points[1], floor_base));
-
-                pointsFloor.push(new THREE.Vector2(
-                    points[0] - X_POS_ADJ,
-                    points[1] - Y_POS_ADJ
-                ));
-            });
-
-            room.points.forEach((points: number[]) => {
-                points3d.push(new THREE.Vector3(points[0], points[1], floor_ceiling));
-            });
-
-                const lines = new THREE.BufferGeometry().setFromPoints(points3d);
-                const roomLine = new THREE.Line(lines, materials.green1);
-                roomLine.position.set(-X_POS_ADJ, -Y_POS_ADJ, 0);
-                newRoomGroup.add(roomLine);
-
-                const floorShape = new THREE.Shape(pointsFloor);
-                const floorGeometry = new THREE.ShapeGeometry(floorShape);
-                const plane = new THREE.Mesh(floorGeometry, floorMaterial);
-                plane.position.z = floor_base;
-                newRoomGroup.add(plane);
-            });
-        });
-
-        groupPivot.add(newRoomGroup);
-        roomGroup = newRoomGroup;
+        const xs = points.map((p) => p[0]);
+        const ys = points.map((p) => p[1]);
+        const width = Math.max(...xs) - Math.min(...xs);
+        const height = Math.max(...ys) - Math.min(...ys);
+        return [Math.max(width, 1), Math.max(height, 1)];
     }
+
+    // Height of each floor in 3D units
+    const FLOOR_HEIGHT = 3;
+    // Floor thickness
+    const FLOOR_THICKNESS = 0.1;
+    // Floor base color
+    const FLOOR_COLOR = 0x808080;
 </script>
+
+<T.Group name="FloorsGroup">
+    {#each floors as floor, floorIndex}
+        {#each floor.rooms as room}
+            {#if room.points && room.points.length > 0}
+                {@const center = getRoomCenter(room.points)}
+                {@const [width, height] = getRoomSize(room.points)}
+                <T.Group position={[center[0], center[1], 0]}>
+                    <T.Mesh>
+                        <T.BoxGeometry args={[width, height, FLOOR_THICKNESS]} />
+                        <T.MeshStandardMaterial color={FLOOR_COLOR} transparent={true} opacity={0.3} />
+                    </T.Mesh>
+
+                    <!-- Room label -->
+                    <HTML
+                        center
+                        occlude
+                        style="color: #ffffff;
+                                   font-family: Arial;
+                                   font-size: 0.8rem;
+                                   margin-top: -1em;"
+                    >
+                        <div>{room.name}</div>
+                    </HTML>
+                </T.Group>
+            {/if}
+        {/each}
+    {/each}
+</T.Group>
