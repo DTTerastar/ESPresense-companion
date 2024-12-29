@@ -33,16 +33,20 @@ namespace ESPresense.Services
                     switch (arg.Setting)
                     {
                         case "absorption":
-                            ns.Absorption = double.Parse(arg.Payload);
+                            if (arg.Payload != null)
+                                ns.Absorption = double.Parse(arg.Payload);
                             break;
                         case "rx_adj_rssi":
-                            ns.RxAdjRssi = int.Parse(arg.Payload);
+                            if (arg.Payload != null)
+                                ns.RxAdjRssi = int.Parse(arg.Payload);
                             break;
                         case "tx_ref_rssi":
-                            ns.TxRefRssi = int.Parse(arg.Payload);
+                            if (arg.Payload != null)
+                                ns.TxRefRssi = int.Parse(arg.Payload);
                             break;
                         case "max_distance":
-                            ns.MaxDistance = double.Parse(arg.Payload);
+                            if (arg.Payload != null)
+                                ns.MaxDistance = double.Parse(arg.Payload);
                             break;
                         default:
                             return Task.CompletedTask;
