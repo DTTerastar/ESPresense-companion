@@ -1,10 +1,23 @@
-﻿﻿﻿﻿using System.Collections.Concurrent;
+﻿﻿using System.Collections.Concurrent;
 using ESPresense.Models;
 
 namespace ESPresense.Services
 {
     public class NodeSettingsStore(MqttCoordinator mqtt, ILogger<NodeSettingsStore> logger) : BackgroundService
     {
+        private static bool ParseBool(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return false;
+
+            value = value.Trim().ToUpperInvariant();
+            return value switch
+            {
+                "TRUE" or "1" or "ON" => true,
+                "FALSE" or "0" or "OFF" => false,
+                _ => bool.Parse(value)
+            };
+        }
         private readonly ConcurrentDictionary<string, NodeSettings> _storeById = new();
 
         public NodeSettings Get(string id)
@@ -18,9 +31,9 @@ namespace ESPresense.Services
 
             // Updating settings
             if (ds.Updating.AutoUpdate == null || ds.Updating.AutoUpdate != old.Updating.AutoUpdate)
-                await mqtt.EnqueueAsync($"espresense/rooms/{id}/auto_update/set", $"{ds.Updating.AutoUpdate}");
+                await mqtt.EnqueueAsync($"espresense/rooms/{id}/auto_update/set", ds.Updating.AutoUpdate == true ? "ON" : "OFF");
             if (ds.Updating.PreRelease == null || ds.Updating.PreRelease != old.Updating.PreRelease)
-                await mqtt.EnqueueAsync($"espresense/rooms/{id}/pre_release/set", $"{ds.Updating.PreRelease}");
+                await mqtt.EnqueueAsync($"espresense/rooms/{id}/pre_release/set", ds.Updating.PreRelease == true ? "ON" : "OFF");
 
             // Scanning settings
             if (ds.Scanning.ForgetAfterMs == null || ds.Scanning.ForgetAfterMs != old.Scanning.ForgetAfterMs)
@@ -68,10 +81,10 @@ namespace ESPresense.Services
                     {
                         // Updating settings
                         case "auto_update":
-                            ns.Updating.AutoUpdate = bool.Parse(arg.Payload);
+                            ns.Updating.AutoUpdate = ParseBool(arg.Payload);
                             break;
                         case "pre_release":
-                            ns.Updating.PreRelease = bool.Parse(arg.Payload);
+                            ns.Updating.PreRelease = ParseBool(arg.Payload);
                             break;
 
                         // Scanning settings
