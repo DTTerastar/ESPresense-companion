@@ -27,6 +27,7 @@
 		{ href: '/nodes', name: 'nodes', icon: nodes, alt: 'Nodes' },
 		{ href: '/calibration', name: 'calibration', icon: calibration, alt: 'Calibration' },
 		{ href: '/3d', name: '3d', icon: cube, alt: '3D View' },
+		{ href: '/settings', name: 'settings', icon: settings, alt: 'Settings' }
 	];
 </script>
 

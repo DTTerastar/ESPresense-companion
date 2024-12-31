@@ -76,10 +76,32 @@ export interface Config {
 export type NodeSetting = {
 	id: string | null;
 	name: string | null;
-	absorption: number | null;
-	rx_adj_rssi: number | null;
-	tx_ref_rssi: number | null;
-	max_distance: number | null;
+	updating: {
+		autoUpdate: boolean | null;
+		preRelease: boolean | null;
+	};
+	scanning: {
+		forgetAfterMs: number | null;
+	};
+	counting: {
+		idPrefixes: string | null;
+		startCountingDistance: number | null;
+		stopCountingDistance: number | null;
+		includeDevicesAge: number | null;
+	};
+	filtering: {
+		includeIds: string | null;
+		excludeIds: string | null;
+		maxDistance: number | null;
+		earlyReportDistance: number | null;
+		skipReportAge: number | null;
+	};
+	calibration: {
+		rssiAt1m: number | null;
+		rxAdjRssi: number | null;
+		absorption: number | null;
+		txRefRssi: number | null;
+	};
 };
 
 export type DeviceSetting = {
